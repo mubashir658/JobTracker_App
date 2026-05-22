@@ -1,19 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { STATUSES } from "./utils/constants";
 import { getThemeColors } from "./utils/styles";
-import { loadUser, saveUser, clearUser, loadJobs, saveJobs } from "./utils/storage";
+import { loadUser, saveUser, clearUser } from "./utils/storage";
 import LoginPage from "./components/LoginPage";
 import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import Kanban from "./components/Kanban";
 import JobModal from "./components/JobModal";
+import AIInsights from "./components/AIInsights";
 
 const emptyJob = { company: "", role: "", date: "", status: "Applied", notes: "" };
+const API = process.env.REACT_APP_API_URL;
 
 export default function App() {
   const [dark, setDark] = useState(false);
   const [page, setPage] = useState("dashboard");
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -21,33 +24,63 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
 
+  const [insights, setInsights] = useState(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState("");
+
+  const fetchJobs = useCallback(async (tk) => {
+    try {
+      const res = await fetch(`${API}/jobs`, { headers: { Authorization: `Bearer ${tk}` } });
+      const data = await res.json();
+      if (res.ok) setJobs(data.map(j => ({ ...j, id: j._id })));
+    } catch (err) {
+      console.error("Failed to fetch jobs:", err);
+    }
+  }, []);
+
+  const fetchInsights = useCallback(async (tk) => {
+    setInsightsLoading(true);
+    setInsightsError("");
+    try {
+      const res = await fetch(`${API}/insights`, { headers: { Authorization: `Bearer ${tk}` } });
+      const data = await res.json();
+      if (res.ok) setInsights(data);
+      else setInsightsError(data.message || "Failed to generate insights");
+    } catch { setInsightsError("Cannot connect to server."); }
+    setInsightsLoading(false);
+  }, []);
+
   // Load user and jobs on mount
   useEffect(() => {
     const savedUser = loadUser();
-    if (savedUser) {
+    if (savedUser && savedUser.token) {
       setUser(savedUser);
+      setToken(savedUser.token);
+      fetchJobs(savedUser.token);
     }
-    const savedJobs = loadJobs();
-    setJobs(savedJobs);
-  }, []);
+  }, [fetchJobs]);
 
-  // Save jobs whenever they change
   useEffect(() => {
-    saveJobs(jobs);
-  }, [jobs]);
+    if (page === "insights" && token && !insights) fetchInsights(token);
+  }, [page, token, insights, fetchInsights]);
 
   const theme = getThemeColors(dark);
 
   // Auth handlers
   const handleLogin = (userData) => {
     setUser(userData);
+    setToken(userData.token);
     saveUser(userData);
+    fetchJobs(userData.token);
   };
 
   const handleLogout = () => {
     setUser(null);
+    setToken(null);
+    setJobs([]);
+    setInsights(null);
     clearUser();
-    setPage("login");
+    setPage("dashboard");
   };
 
   // Job handlers
@@ -59,30 +92,99 @@ export default function App() {
 
   const openEdit = (job) => {
     setEditing(job.id);
-    setForm({ ...job });
+    const { id, ...formData } = job;
+    setForm(formData);
     setModal(true);
   };
 
-  const saveJob = () => {
+  const saveJob = async () => {
     if (editing) {
-      setJobs(jobs.map(j => j.id === editing ? { ...form, id: editing } : j));
+      try {
+        const res = await fetch(`${API}/jobs/${editing}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(form)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setJobs(jobs.map(j => j.id === editing ? { ...data, id: data._id } : j));
+          setInsights(null);
+        } else {
+          alert(data.message || "Failed to update job");
+        }
+      } catch {
+        alert("Cannot connect to server.");
+      }
     } else {
-      setJobs([...jobs, { ...form, id: Date.now() }]);
+      try {
+        const res = await fetch(`${API}/jobs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(form)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setJobs([...jobs, { ...data, id: data._id }]);
+          setInsights(null);
+        } else {
+          alert(data.message || "Failed to add job");
+        }
+      } catch {
+        alert("Cannot connect to server.");
+      }
     }
     setModal(false);
   };
 
-  const deleteJob = (id) => {
-    setJobs(jobs.filter(j => j.id !== id));
+  const deleteJob = async (id) => {
+    try {
+      const res = await fetch(`${API}/jobs/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJobs(jobs.filter(j => j.id !== id));
+        setInsights(null);
+      } else {
+        alert(data.message || "Failed to delete job");
+      }
+    } catch {
+      alert("Cannot connect to server.");
+    }
   };
 
-  const moveStatus = (id, dir) => {
-    setJobs(jobs.map(j => {
-      if (j.id !== id) return j;
-      const idx = STATUSES.indexOf(j.status);
-      const next = STATUSES[Math.min(Math.max(idx + dir, 0), STATUSES.length - 1)];
-      return { ...j, status: next };
-    }));
+  const moveStatus = async (id, dir) => {
+    const job = jobs.find(j => j.id === id);
+    if (!job) return;
+    const idx = STATUSES.indexOf(job.status);
+    const next = STATUSES[Math.min(Math.max(idx + dir, 0), STATUSES.length - 1)];
+
+    try {
+      const res = await fetch(`${API}/jobs/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...job, status: next })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setJobs(jobs.map(j => j.id === id ? { ...data, id: data._id } : j));
+        setInsights(null);
+      } else {
+        alert(data.message || "Failed to update job status");
+      }
+    } catch {
+      alert("Cannot connect to server.");
+    }
   };
 
   const filtered = jobs.filter(j =>
@@ -131,6 +233,16 @@ export default function App() {
             onDelete={deleteJob}
             onMove={moveStatus}
             onAdd={openAdd}
+          />
+        )}
+
+        {page === "insights" && (
+          <AIInsights
+            insights={insights}
+            insightsLoading={insightsLoading}
+            insightsError={insightsError}
+            onRefresh={() => { setInsights(null); fetchInsights(token); }}
+            theme={theme}
           />
         )}
       </div>

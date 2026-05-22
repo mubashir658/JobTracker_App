@@ -6,6 +6,9 @@ require("dotenv").config();
 const authRoutes = require("./routes/auth");
 const jobRoutes = require("./routes/jobs");
 
+
+const insightsRoutes = require("./routes/insights");
+
 const app = express();
 
 app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
@@ -14,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobRoutes);
+app.use("/api/insights", insightsRoutes);
 
 app.get("/", (req, res) => res.json({ message: "JobTracker API running " }));
 

@@ -1,11 +1,10 @@
-import { getThemeColors } from "../utils/styles";
 
 export default function Navbar({ user, page, setPage, onLogout, dark, setDark, theme }) {
   return (
     <div style={{ background: theme.card, borderBottom: `1px solid ${theme.border}`, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: theme.accent }}>💼 JobTracker</div>
-        {["dashboard", "kanban"].map(p => (
+        {["dashboard", "kanban", "insights"].map(p => (
           <button 
             key={p} 
             onClick={() => setPage(p)}
@@ -17,10 +16,9 @@ export default function Navbar({ user, page, setPage, onLogout, dark, setDark, t
               fontWeight: 500, 
               color: page === p ? theme.accent : theme.muted, 
               borderBottom: page === p ? `2px solid ${theme.accent}` : "2px solid transparent", 
-              padding: "18px 4px", 
-              textTransform: "capitalize" 
+              padding: "18px 4px"
             }}>
-            {p === "dashboard" ? "📊 Dashboard" : "🗂 Kanban"}
+            {p === "dashboard" ? "📊 Dashboard" : p === "kanban" ? "🗂 Kanban" : "🤖 AI Insights"}
           </button>
         ))}
       </div>
