@@ -7,7 +7,7 @@ const authRoutes = require("./routes/auth");
 const jobRoutes = require("./routes/jobs");
 
 
-const insightsRoutes = require("./routes/insights");
+const insightsRoutes = require("./routes/Insights");
 
 const app = express();
 
