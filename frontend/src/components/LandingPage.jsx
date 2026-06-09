@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const FEATURES = [
   { icon: "📋", title: "Track Applications", desc: "Add and manage all your job applications in one place. Never lose track of where you applied." },
@@ -52,6 +52,16 @@ export default function LandingPage({
     outline: "none", boxSizing: "border-box", fontFamily: "inherit"
   };
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const handleFeedback = (e) => {
     e.preventDefault();
     if (!feedback.name || !feedback.email || !feedback.message) return;
@@ -62,24 +72,42 @@ export default function LandingPage({
     <div style={{ minHeight: "100vh", background: bg, color: txt, fontFamily: "'Segoe UI', system-ui, sans-serif", transition: "all 0.2s" }}>
 
       {/* NAVBAR */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: d ? "rgba(10,10,15,0.92)" : "rgba(244,246,251,0.92)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${border}`, padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
+      <nav style={{ position: "sticky", top: 0, zIndex: 100, background: isMobile ? (d ? "#0a0a0f" : "#f4f6fb") : (d ? "rgba(10,10,15,0.92)" : "rgba(244,246,251,0.92)"), backdropFilter: isMobile ? "none" : "blur(12px)", borderBottom: `1px solid ${border}`, padding: isMobile ? "0 14px" : "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 22 }}>💼</span>
           <span style={{ fontSize: 16, fontWeight: 700, color: accent }}>JobTracker</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {["home", "features", "how-it-works", "feedback"].map(p => (
-            <button key={p} onClick={() => setPage(p)}
-              style={{ background: page === p ? accentLight : "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: page === p ? accent : muted, borderRadius: 8, padding: "6px 14px", textTransform: "capitalize", transition: "all 0.15s" }}>
-              {p === "how-it-works" ? "How It Works" : p.charAt(0).toUpperCase() + p.slice(1)}
+        {isMobile ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setMenuOpen(!menuOpen)} aria-label="menu" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: txt }}>
+              ⋮
             </button>
-          ))}
-          <button onClick={() => setDark(!d)} style={{ background: "none", border: `1px solid ${border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 16, marginLeft: 4 }}>{d ? "☀️" : "🌙"}</button>
-          <button onClick={() => onLoginClick ? onLoginClick() : null}
-            style={{ background: accent, color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
-            Login →
-          </button>
-        </div>
+            {menuOpen && (
+              <div style={{ position: "absolute", right: 12, top: 62, background: card, border: `1px solid ${border}`, borderRadius: 8, padding: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                {[["home","Home"],["features","Features"],["how-it-works","How It Works"],["feedback","Feedback"]].map(([pKey,label])=> (
+                  <div key={pKey} onClick={() => { setPage(pKey); setMenuOpen(false); }} style={{ padding: "8px 12px", cursor: "pointer", color: txt, fontSize: 14 }}>{label}</div>
+                ))}
+                <div style={{ height: 1, background: border, margin: "6px 0" }} />
+                <div onClick={() => { setDark(!d); setMenuOpen(false); }} style={{ padding: "8px 12px", cursor: "pointer", color: txt, fontSize: 14 }}>{d ? "Light" : "Dark"}</div>
+                <div onClick={() => { onLoginClick && onLoginClick(); setMenuOpen(false); }} style={{ padding: "8px 12px", cursor: "pointer", color: txt, fontSize: 14 }}>Login</div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {["home", "features", "how-it-works", "feedback"].map(p => (
+              <button key={p} onClick={() => setPage(p)}
+                style={{ background: page === p ? accentLight : "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: page === p ? accent : muted, borderRadius: 8, padding: "6px 14px", textTransform: "capitalize", transition: "all 0.15s" }}>
+                {p === "how-it-works" ? "How It Works" : p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+            <button onClick={() => setDark(!d)} style={{ background: "none", border: `1px solid ${border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 16, marginLeft: 4 }}>{d ? "☀️" : "🌙"}</button>
+            <button onClick={() => onLoginClick ? onLoginClick() : null}
+              style={{ background: accent, color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", marginLeft: 6 }}>
+              Login →
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* HOME PAGE */}
