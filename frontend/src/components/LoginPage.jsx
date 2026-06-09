@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { getThemeColors, getInputStyle } from "../utils/styles";
 
-const API = process.env.REACT_APP_API_URL;
+const _RAW_API = process.env.REACT_APP_API_URL || "";
+const API = _RAW_API.endsWith("/api")
+  ? _RAW_API.replace(/\/$/, "")
+  : _RAW_API.replace(/\/$/, "") + "/api";
 
 export default function LoginPage({ onLogin, dark, setDark }) {
   const theme = getThemeColors(dark);

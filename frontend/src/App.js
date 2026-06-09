@@ -10,7 +10,10 @@ import JobModal from "./components/JobModal";
 import AIInsights from "./components/AIInsights";
 
 const emptyJob = { company: "", role: "", date: "", status: "Applied", notes: "" };
-const API = process.env.REACT_APP_API_URL;
+const _RAW_API = process.env.REACT_APP_API_URL || "";
+const API = _RAW_API.endsWith("/api")
+  ? _RAW_API.replace(/\/$/, "")
+  : _RAW_API.replace(/\/$/, "") + "/api";
 
 export default function App() {
   const [dark, setDark] = useState(false);
