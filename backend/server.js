@@ -13,15 +13,22 @@ const app = express();
 
 // Allow multiple client origins via CLIENT_URLS (comma-separated) or single CLIENT_URL.
 const CLIENT_URLS = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "").split(",").map(u => u.trim()).filter(Boolean);
-app.use(cors({
-  origin: (origin, callback) => {
-    // allow requests like curl/postman with no origin
-    if (!origin) return callback(null, true);
-    if (CLIENT_URLS.length === 0) return callback(null, true); // allow all if not configured
-    if (CLIENT_URLS.includes(origin)) return callback(null, true);
-    callback(new Error("Not allowed by CORS"));
+// Custom CORS handling to ensure preflight responses include the correct headers
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // allow non-browser requests (no origin header)
+  if (!origin) return next();
+  // If no CLIENT_URLS configured, allow all origins
+  if (CLIENT_URLS.length === 0 || CLIENT_URLS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    return next();
   }
-}));
+  res.status(403).json({ message: "CORS origin denied" });
+});
 app.use(express.json());
 
 // Routes
