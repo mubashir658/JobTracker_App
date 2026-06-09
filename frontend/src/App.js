@@ -3,6 +3,7 @@ import { STATUSES } from "./utils/constants";
 import { getThemeColors } from "./utils/styles";
 import { loadUser, saveUser, clearUser } from "./utils/storage";
 import LoginPage from "./components/LoginPage";
+import LandingPage from "./components/LandingPage"; //
 import Navbar from "./components/Navbar";
 import Dashboard from "./components/Dashboard";
 import Kanban from "./components/Kanban";
@@ -18,6 +19,8 @@ const API = _RAW_API.endsWith("/api")
 export default function App() {
   const [dark, setDark] = useState(false);
   const [page, setPage] = useState("dashboard");
+  const [landingPage, setLandingPage] = useState("home"); //tracks landing sub-page
+  const [authMode, setAuthMode] = useState("landing"); // NEW: "landing" | "login" | "signup"
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -75,6 +78,7 @@ export default function App() {
     setToken(userData.token);
     saveUser(userData);
     fetchJobs(userData.token);
+    setAuthMode("landing"); // reset auth mode
   };
 
   const handleLogout = () => {
@@ -84,14 +88,11 @@ export default function App() {
     setInsights(null);
     clearUser();
     setPage("dashboard");
+    setAuthMode("landing"); //  go back to landing on logout
   };
 
   // Job handlers
-  const openAdd = () => {
-    setEditing(null);
-    setForm(emptyJob);
-    setModal(true);
-  };
+  const openAdd = () => { setEditing(null); setForm(emptyJob); setModal(true); };
 
   const openEdit = (job) => {
     setEditing(job.id);
@@ -105,62 +106,35 @@ export default function App() {
       try {
         const res = await fetch(`${API}/jobs/${editing}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(form)
         });
         const data = await res.json();
-        if (res.ok) {
-          setJobs(jobs.map(j => j.id === editing ? { ...data, id: data._id } : j));
-          setInsights(null);
-        } else {
-          alert(data.message || "Failed to update job");
-        }
-      } catch {
-        alert("Cannot connect to server.");
-      }
+        if (res.ok) { setJobs(jobs.map(j => j.id === editing ? { ...data, id: data._id } : j)); setInsights(null); }
+        else alert(data.message || "Failed to update job");
+      } catch { alert("Cannot connect to server."); }
     } else {
       try {
         const res = await fetch(`${API}/jobs`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify(form)
         });
         const data = await res.json();
-        if (res.ok) {
-          setJobs([...jobs, { ...data, id: data._id }]);
-          setInsights(null);
-        } else {
-          alert(data.message || "Failed to add job");
-        }
-      } catch {
-        alert("Cannot connect to server.");
-      }
+        if (res.ok) { setJobs([...jobs, { ...data, id: data._id }]); setInsights(null); }
+        else alert(data.message || "Failed to add job");
+      } catch { alert("Cannot connect to server."); }
     }
     setModal(false);
   };
 
   const deleteJob = async (id) => {
     try {
-      const res = await fetch(`${API}/jobs/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${API}/jobs/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (res.ok) {
-        setJobs(jobs.filter(j => j.id !== id));
-        setInsights(null);
-      } else {
-        alert(data.message || "Failed to delete job");
-      }
-    } catch {
-      alert("Cannot connect to server.");
-    }
+      if (res.ok) { setJobs(jobs.filter(j => j.id !== id)); setInsights(null); }
+      else alert(data.message || "Failed to delete job");
+    } catch { alert("Cannot connect to server."); }
   };
 
   const moveStatus = async (id, dir) => {
@@ -168,26 +142,16 @@ export default function App() {
     if (!job) return;
     const idx = STATUSES.indexOf(job.status);
     const next = STATUSES[Math.min(Math.max(idx + dir, 0), STATUSES.length - 1)];
-
     try {
       const res = await fetch(`${API}/jobs/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...job, status: next })
       });
       const data = await res.json();
-      if (res.ok) {
-        setJobs(jobs.map(j => j.id === id ? { ...data, id: data._id } : j));
-        setInsights(null);
-      } else {
-        alert(data.message || "Failed to update job status");
-      }
-    } catch {
-      alert("Cannot connect to server.");
-    }
+      if (res.ok) { setJobs(jobs.map(j => j.id === id ? { ...data, id: data._id } : j)); setInsights(null); }
+      else alert(data.message || "Failed to update job status");
+    } catch { alert("Cannot connect to server."); }
   };
 
   const filtered = jobs.filter(j =>
@@ -195,19 +159,44 @@ export default function App() {
     (j.company.toLowerCase().includes(search.toLowerCase()) || j.role.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Show login if not authenticated
-  if (!user) {
-    return <LoginPage onLogin={handleLogin} dark={dark} setDark={setDark} />;
+  // ROUTING LOGIC:
+  // 1. Not logged in + authMode = "landing" → show LandingPage
+  // 2. Not logged in + authMode = "login"/"signup" → show LoginPage
+  // 3. Logged in → show main app
+
+  if (!user && authMode === "landing") {
+    return (
+      <LandingPage
+        dark={dark}
+        setDark={setDark}
+        landingPage={landingPage}
+        setLandingPage={setLandingPage}
+        onLoginClick={() => setAuthMode("login")}
+        onSignupClick={() => setAuthMode("signup")}
+      />
+    );
+  }
+
+  if (!user && (authMode === "login" || authMode === "signup")) {
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        dark={dark}
+        setDark={setDark}
+        initialMode={authMode}
+        onBack={() => setAuthMode("landing")} // back button to landing
+      />
+    );
   }
 
   return (
     <div style={{ minHeight: "100vh", background: theme.bg, color: theme.txt, fontFamily: "system-ui, sans-serif" }}>
-      <Navbar 
-        user={user} 
-        page={page} 
-        setPage={setPage} 
-        onLogout={handleLogout} 
-        dark={dark} 
+      <Navbar
+        user={user}
+        page={page}
+        setPage={setPage}
+        onLogout={handleLogout}
+        dark={dark}
         setDark={setDark}
         theme={theme}
       />
@@ -227,7 +216,6 @@ export default function App() {
             theme={theme}
           />
         )}
-
         {page === "kanban" && (
           <Kanban
             jobs={jobs}
@@ -238,7 +226,6 @@ export default function App() {
             onAdd={openAdd}
           />
         )}
-
         {page === "insights" && (
           <AIInsights
             insights={insights}
